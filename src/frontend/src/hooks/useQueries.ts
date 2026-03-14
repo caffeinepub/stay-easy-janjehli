@@ -1,6 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Booking, Room } from "../backend.d";
+import type {
+  Booking,
+  backendInterface as FullBackend,
+  Room,
+  ShoppingItem,
+  StripeConfiguration,
+  StripeSessionStatus,
+} from "../backend.d";
 import { useActor } from "./useActor";
+
+function typed(actor: unknown): FullBackend {
+  return actor as FullBackend;
+}
 
 export function useGetRooms() {
   const { actor, isFetching } = useActor();
@@ -8,7 +19,7 @@ export function useGetRooms() {
     queryKey: ["rooms"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getRooms();
+      return typed(actor).getRooms();
     },
     enabled: !!actor && !isFetching,
   });
@@ -20,7 +31,7 @@ export function useGetRoomById(id: bigint | null) {
     queryKey: ["room", id?.toString()],
     queryFn: async () => {
       if (!actor || id === null) return null;
-      return actor.getRoomById(id);
+      return typed(actor).getRoomById(id);
     },
     enabled: !!actor && !isFetching && id !== null,
   });
@@ -38,7 +49,7 @@ export function useSubmitBooking() {
       checkOut: string;
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.submitBooking(
+      return typed(actor).submitBooking(
         params.roomId,
         params.guestName,
         params.phone,
@@ -59,7 +70,7 @@ export function useGetBookings() {
     queryKey: ["bookings"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getBookings();
+      return typed(actor).getBookings();
     },
     enabled: !!actor && !isFetching,
   });
@@ -71,7 +82,7 @@ export function useGetContactPhone() {
     queryKey: ["contactPhone"],
     queryFn: async () => {
       if (!actor) return "+91 98765 43210";
-      return actor.getContactPhone();
+      return typed(actor).getContactPhone();
     },
     enabled: !!actor && !isFetching,
   });
@@ -83,7 +94,7 @@ export function useUpdateContactPhone() {
   return useMutation({
     mutationFn: async (phoneNumber: string) => {
       if (!actor) throw new Error("Not connected");
-      return actor.updateContactPhone(phoneNumber);
+      return typed(actor).updateContactPhone(phoneNumber);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contactPhone"] });
@@ -102,7 +113,7 @@ export function useUpdateRoom() {
       price: bigint;
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.updateRoom(
+      return typed(actor).updateRoom(
         params.id,
         params.name,
         params.description,
@@ -125,5 +136,64 @@ export function useIsCallerAdmin() {
       return actor.isCallerAdmin();
     },
     enabled: !!actor && !isFetching,
+  });
+}
+
+export function useIsStripeConfigured() {
+  const { actor, isFetching } = useActor();
+  return useQuery<boolean>({
+    queryKey: ["isStripeConfigured"],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.isStripeConfigured();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreatePaymentSession() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async (params: {
+      items: ShoppingItem[];
+      successUrl: string;
+      cancelUrl: string;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      const url = await actor.createCheckoutSession(
+        params.items,
+        params.successUrl,
+        params.cancelUrl,
+      );
+      window.location.href = url;
+      return url;
+    },
+  });
+}
+
+export function useVerifyPaymentSession(sessionId: string | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<StripeSessionStatus | null>({
+    queryKey: ["stripeSession", sessionId],
+    queryFn: async () => {
+      if (!actor || !sessionId) return null;
+      return actor.getStripeSessionStatus(sessionId);
+    },
+    enabled: !!actor && !isFetching && !!sessionId,
+    retry: false,
+  });
+}
+
+export function useSetStripeConfiguration() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (config: StripeConfiguration) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setStripeConfiguration(config);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["isStripeConfigured"] });
+    },
   });
 }

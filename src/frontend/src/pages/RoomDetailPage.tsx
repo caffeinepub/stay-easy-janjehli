@@ -7,6 +7,7 @@ import {
   Car,
   CheckCircle,
   Coffee,
+  CreditCard,
   MessageCircle,
   Mountain,
   Phone,
@@ -14,14 +15,17 @@ import {
   Tv,
   Wifi,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Room } from "../backend.d";
 import AppHeader from "../components/AppHeader";
 import {
+  useCreatePaymentSession,
   useGetContactPhone,
   useGetRoomById,
+  useIsStripeConfigured,
   useSubmitBooking,
+  useVerifyPaymentSession,
 } from "../hooks/useQueries";
 
 const AMENITY_ICONS: Record<string, React.ReactNode> = {
@@ -65,16 +69,22 @@ const SAMPLE_ROOMS: Record<string, Room> = {
 };
 
 interface BookingFormProps {
-  roomId: bigint;
+  room: Room;
   onSuccess: () => void;
+  stripeAvailable: boolean;
 }
 
-function BookingForm({ roomId, onSuccess }: BookingFormProps) {
+function BookingForm({ room, onSuccess, stripeAvailable }: BookingFormProps) {
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
-  const { mutateAsync, isPending } = useSubmitBooking();
+  const { mutateAsync: submitBooking, isPending: submitting } =
+    useSubmitBooking();
+  const { mutateAsync: createSession, isPending: redirecting } =
+    useCreatePaymentSession();
+
+  const isPending = submitting || redirecting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,12 +92,52 @@ function BookingForm({ roomId, onSuccess }: BookingFormProps) {
       toast.error("Please fill all fields");
       return;
     }
-    try {
-      await mutateAsync({ roomId, guestName, phone, checkIn, checkOut });
-      toast.success("Booking confirmed! We will contact you shortly.");
-      onSuccess();
-    } catch {
-      toast.error("Booking failed. Please try again.");
+
+    if (stripeAvailable) {
+      const base = window.location.origin + window.location.pathname;
+      const params = new URLSearchParams({
+        payment: "success",
+        session_id: "{CHECKOUT_SESSION_ID}",
+        roomId: room.id.toString(),
+        guestName,
+        phone,
+        checkIn,
+        checkOut,
+      });
+      const successUrl = `${base}?${params.toString()}`;
+      const cancelUrl = `${base}?payment=cancelled&roomId=${room.id.toString()}`;
+
+      try {
+        await createSession({
+          items: [
+            {
+              productName: room.name,
+              currency: "inr",
+              quantity: BigInt(1),
+              priceInCents: room.pricePerNight * BigInt(100),
+              productDescription: room.description,
+            },
+          ],
+          successUrl,
+          cancelUrl,
+        });
+      } catch {
+        toast.error("Failed to create payment session. Please try again.");
+      }
+    } else {
+      try {
+        await submitBooking({
+          roomId: room.id,
+          guestName,
+          phone,
+          checkIn,
+          checkOut,
+        });
+        toast.success("Booking request sent! We will contact you shortly.");
+        onSuccess();
+      } catch {
+        toast.error("Booking failed. Please try again.");
+      }
     }
   };
 
@@ -97,6 +147,11 @@ function BookingForm({ roomId, onSuccess }: BookingFormProps) {
       onSubmit={handleSubmit}
       className="space-y-4 pt-2"
     >
+      {!stripeAvailable && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-yellow-800 text-xs">
+          Online payment not available — booking request will be sent directly.
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label
           htmlFor="guestName"
@@ -170,7 +225,15 @@ function BookingForm({ roomId, onSuccess }: BookingFormProps) {
         disabled={isPending}
         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 text-base rounded-xl"
       >
-        {isPending ? "Submitting..." : "Confirm Booking"}
+        {isPending ? (
+          "Processing..."
+        ) : stripeAvailable ? (
+          <span className="flex items-center gap-2 justify-center">
+            <CreditCard size={18} /> Pay &amp; Book
+          </span>
+        ) : (
+          "Confirm Booking"
+        )}
       </Button>
     </form>
   );
@@ -187,12 +250,99 @@ export default function RoomDetailPage({
 }: RoomDetailPageProps) {
   const { data: fetchedRoom, isLoading } = useGetRoomById(roomId);
   const { data: contactPhone, isLoading: phoneLoading } = useGetContactPhone();
+  const { data: stripeConfigured } = useIsStripeConfigured();
   const [showForm, setShowForm] = useState(false);
   const [booked, setBooked] = useState(false);
+
+  // Parse URL params once (stable across renders)
+  const urlSearch = window.location.search;
+  const paymentStatus = useMemo(
+    () => new URLSearchParams(urlSearch).get("payment"),
+    [urlSearch],
+  );
+  const sessionId = useMemo(
+    () => new URLSearchParams(urlSearch).get("session_id"),
+    [urlSearch],
+  );
+  const urlRoomId = useMemo(
+    () => new URLSearchParams(urlSearch).get("roomId"),
+    [urlSearch],
+  );
+  const urlGuestName = useMemo(
+    () => new URLSearchParams(urlSearch).get("guestName") ?? "",
+    [urlSearch],
+  );
+  const urlPhone = useMemo(
+    () => new URLSearchParams(urlSearch).get("phone") ?? "",
+    [urlSearch],
+  );
+  const urlCheckIn = useMemo(
+    () => new URLSearchParams(urlSearch).get("checkIn") ?? "",
+    [urlSearch],
+  );
+  const urlCheckOut = useMemo(
+    () => new URLSearchParams(urlSearch).get("checkOut") ?? "",
+    [urlSearch],
+  );
+
+  const shouldVerify =
+    paymentStatus === "success" &&
+    !!sessionId &&
+    urlRoomId === roomId.toString();
+
+  const { data: sessionStatus } = useVerifyPaymentSession(
+    shouldVerify ? sessionId : null,
+  );
+
+  const { mutateAsync: submitBooking } = useSubmitBooking();
+  const hasProcessedRef = useRef(false);
+
+  useEffect(() => {
+    if (paymentStatus === "cancelled") {
+      toast.error("Payment was cancelled.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [paymentStatus]);
+
+  useEffect(() => {
+    if (!sessionStatus || hasProcessedRef.current) return;
+    if (sessionStatus.__kind__ === "completed") {
+      hasProcessedRef.current = true;
+      submitBooking({
+        roomId,
+        guestName: urlGuestName,
+        phone: urlPhone,
+        checkIn: urlCheckIn,
+        checkOut: urlCheckOut,
+      })
+        .then(() => {
+          setBooked(true);
+          toast.success("Payment successful! Booking confirmed.");
+          window.history.replaceState({}, "", window.location.pathname);
+        })
+        .catch(() => {
+          toast.error(
+            "Payment received but booking failed. Please contact us.",
+          );
+        });
+    } else if (sessionStatus.__kind__ === "failed") {
+      toast.error(`Payment failed: ${sessionStatus.failed.error}`);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [
+    sessionStatus,
+    roomId,
+    submitBooking,
+    urlGuestName,
+    urlPhone,
+    urlCheckIn,
+    urlCheckOut,
+  ]);
 
   const room = fetchedRoom ?? SAMPLE_ROOMS[roomId.toString()];
   const displayPhone = contactPhone ?? "+91 98765 43210";
   const waNumber = displayPhone.replace(/[^0-9]/g, "");
+  const stripeAvailable = stripeConfigured === true;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -313,7 +463,9 @@ export default function RoomDetailPage({
                   Booking Confirmed!
                 </h3>
                 <p className="text-green-700 text-sm mt-1">
-                  We will contact you shortly to confirm your stay.
+                  {stripeAvailable
+                    ? "Payment received. We will contact you shortly."
+                    : "We will contact you shortly to confirm your stay."}
                 </p>
               </div>
             ) : (
@@ -322,10 +474,16 @@ export default function RoomDetailPage({
                   <Button
                     data-ocid="booking.open_modal_button"
                     onClick={() => setShowForm(true)}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-14 text-base rounded-none"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-14 text-base rounded-none flex items-center justify-center gap-2"
                     disabled={!room.available}
                   >
-                    Submit Booking Request
+                    {stripeAvailable ? (
+                      <>
+                        <CreditCard size={18} /> Book &amp; Pay Online
+                      </>
+                    ) : (
+                      "Submit Booking Request"
+                    )}
                   </Button>
                 ) : (
                   <div className="p-4">
@@ -333,11 +491,14 @@ export default function RoomDetailPage({
                       Book Your Stay
                     </h3>
                     <p className="text-muted-foreground text-xs mb-4">
-                      Fill in your details and we'll confirm your booking.
+                      {stripeAvailable
+                        ? "Fill your details — you'll be redirected to secure payment."
+                        : "Fill in your details and we'll confirm your booking."}
                     </p>
                     <BookingForm
-                      roomId={room.id}
+                      room={room}
                       onSuccess={() => setBooked(true)}
+                      stripeAvailable={stripeAvailable}
                     />
                   </div>
                 )}

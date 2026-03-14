@@ -16,9 +16,9 @@ export default function ContactPage() {
         {/* Logo hero */}
         <div className="bg-primary rounded-2xl p-6 flex flex-col items-center shadow-elevated">
           <img
-            src="/assets/uploads/IMG-20260314-WA0050-1.jpg"
+            src="/assets/uploads/IMG_20260315_031009-1.jpg"
             alt="Stay Easy Logo"
-            className="w-24 h-24 rounded-full object-cover bg-white/10 mb-3"
+            className="h-24 w-auto max-w-[180px] object-contain rounded-xl mb-3"
           />
           <h2 className="text-primary-foreground font-bold text-2xl font-display">
             Stay Easy

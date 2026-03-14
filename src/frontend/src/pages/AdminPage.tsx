@@ -3,7 +3,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, LogIn, Phone, Settings } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  CreditCard,
+  Loader2,
+  LogIn,
+  Phone,
+  Settings,
+  XCircle,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Room } from "../backend.d";
@@ -12,6 +21,8 @@ import {
   useGetContactPhone,
   useGetRooms,
   useIsCallerAdmin,
+  useIsStripeConfigured,
+  useSetStripeConfiguration,
   useUpdateContactPhone,
   useUpdateRoom,
 } from "../hooks/useQueries";
@@ -125,15 +136,131 @@ function RoomEditCard({ room }: RoomEditCardProps) {
   );
 }
 
+function PaymentSettingsSection() {
+  const { data: isConfigured, isLoading: configLoading } =
+    useIsStripeConfigured();
+  const setConfig = useSetStripeConfiguration();
+  const [secretKey, setSecretKey] = useState("");
+  const [countries, setCountries] = useState("IN");
+
+  const handleSave = async () => {
+    if (!secretKey.trim()) {
+      toast.error("Please enter a Stripe Secret Key");
+      return;
+    }
+    const allowedCountries = countries
+      .split(",")
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    try {
+      await setConfig.mutateAsync({
+        secretKey: secretKey.trim(),
+        allowedCountries,
+      });
+      setSecretKey("");
+      toast.success("Payment settings saved!");
+    } catch {
+      toast.error("Failed to save payment settings.");
+    }
+  };
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-foreground font-bold text-base flex items-center gap-2">
+        <CreditCard size={16} className="text-primary" />
+        Payment Settings (Stripe)
+      </h2>
+      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        {/* Status badge */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Status:</span>
+          {configLoading ? (
+            <Skeleton className="h-4 w-24" />
+          ) : isConfigured ? (
+            <span className="flex items-center gap-1 text-green-600 font-semibold">
+              <CheckCircle2 size={14} /> Configured
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-red-500 font-semibold">
+              <XCircle size={14} /> Not Configured
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Stripe Secret Key
+          </Label>
+          <Input
+            data-ocid="admin.stripe_key.input"
+            type="password"
+            value={secretKey}
+            onChange={(e) => setSecretKey(e.target.value)}
+            placeholder="sk_live_..."
+            className="h-10 text-sm font-mono"
+            autoComplete="off"
+          />
+          <p className="text-xs text-muted-foreground">
+            Get your key from{" "}
+            <a
+              href="https://dashboard.stripe.com/apikeys"
+              target="_blank"
+              rel="noreferrer"
+              className="underline text-primary"
+            >
+              Stripe Dashboard
+            </a>
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Allowed Countries (comma-separated)
+          </Label>
+          <Input
+            data-ocid="admin.stripe_countries.input"
+            value={countries}
+            onChange={(e) => setCountries(e.target.value)}
+            placeholder="IN, US, GB"
+            className="h-10 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Use ISO country codes, e.g. IN for India
+          </p>
+        </div>
+
+        <Button
+          data-ocid="admin.stripe_save.button"
+          onClick={handleSave}
+          disabled={setConfig.isPending}
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-10"
+        >
+          {setConfig.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+            </>
+          ) : (
+            "Save Payment Settings"
+          )}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 interface AdminPageProps {
   onBack: () => void;
 }
 
 export default function AdminPage({ onBack }: AdminPageProps) {
-  const { login, isLoggingIn, loginStatus, identity } = useInternetIdentity();
-  const isLoggedIn = loginStatus === "success" && !!identity;
+  const { login, isLoggingIn, identity, clear } = useInternetIdentity();
+  const isLoggedIn = !!identity;
 
-  const { data: isAdmin, isLoading: adminLoading } = useIsCallerAdmin();
+  const {
+    data: isAdmin,
+    isLoading: adminLoading,
+    isError: adminError,
+  } = useIsCallerAdmin();
   const { data: rooms, isLoading: roomsLoading } = useGetRooms();
   const { data: contactPhone, isLoading: phoneLoading } = useGetContactPhone();
 
@@ -185,7 +312,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
             <div className="text-center space-y-1">
               <h2 className="font-bold text-foreground text-xl">Admin Login</h2>
               <p className="text-muted-foreground text-sm">
-                Login to manage rooms, rates & contact info
+                Login to manage rooms, rates &amp; contact info
               </p>
             </div>
             <Button
@@ -206,8 +333,8 @@ export default function AdminPage({ onBack }: AdminPageProps) {
           </div>
         )}
 
-        {/* Logged in but not admin */}
-        {isLoggedIn && !adminLoading && isAdmin === false && (
+        {/* Logged in but not admin or error */}
+        {isLoggedIn && !adminLoading && (isAdmin === false || adminError) && (
           <div
             data-ocid="admin.error_state"
             className="flex flex-col items-center justify-center py-16 space-y-3 text-center"
@@ -221,6 +348,16 @@ export default function AdminPage({ onBack }: AdminPageProps) {
             </p>
             <Button variant="outline" onClick={onBack} className="mt-2">
               Go Back
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                clear();
+              }}
+              className="mt-2"
+              data-ocid="admin.logout.button"
+            >
+              Try Different Account
             </Button>
           </div>
         )}
@@ -284,6 +421,9 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                 </Button>
               </div>
             </section>
+
+            {/* Payment Settings Section */}
+            <PaymentSettingsSection />
 
             {/* Rooms Section */}
             <section className="space-y-3">

@@ -13,48 +13,69 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const Booking = IDL.Record({
-  'id' : IDL.Nat,
-  'checkIn' : IDL.Text,
-  'createdAt' : IDL.Int,
-  'guestName' : IDL.Text,
-  'checkOut' : IDL.Text,
-  'phone' : IDL.Text,
-  'roomId' : IDL.Nat,
+export const ShoppingItem = IDL.Record({
+  'productName' : IDL.Text,
+  'currency' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'priceInCents' : IDL.Nat,
+  'productDescription' : IDL.Text,
 });
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
-export const Room = IDL.Record({
-  'id' : IDL.Nat,
-  'pricePerNight' : IDL.Nat,
+export const StripeSessionStatus = IDL.Variant({
+  'completed' : IDL.Record({
+    'userPrincipal' : IDL.Opt(IDL.Text),
+    'response' : IDL.Text,
+  }),
+  'failed' : IDL.Record({ 'error' : IDL.Text }),
+});
+export const StripeConfiguration = IDL.Record({
+  'allowedCountries' : IDL.Vec(IDL.Text),
+  'secretKey' : IDL.Text,
+});
+export const http_header = IDL.Record({
+  'value' : IDL.Text,
   'name' : IDL.Text,
-  'description' : IDL.Text,
-  'amenities' : IDL.Vec(IDL.Text),
-  'available' : IDL.Bool,
+});
+export const http_request_result = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
+export const TransformationInput = IDL.Record({
+  'context' : IDL.Vec(IDL.Nat8),
+  'response' : http_request_result,
+});
+export const TransformationOutput = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
 });
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'getBookings' : IDL.Func([], [IDL.Vec(Booking)], ['query']),
+  'createCheckoutSession' : IDL.Func(
+      [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+      [IDL.Text],
+      [],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-  'getContactPhone' : IDL.Func([], [IDL.Text], ['query']),
-  'getRoomById' : IDL.Func([IDL.Nat], [Room], ['query']),
-  'getRooms' : IDL.Func([], [IDL.Vec(Room)], ['query']),
+  'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'submitBooking' : IDL.Func(
-      [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Int],
-      [IDL.Nat],
-      [],
+  'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+  'transform' : IDL.Func(
+      [TransformationInput],
+      [TransformationOutput],
+      ['query'],
     ),
-  'updateContactPhone' : IDL.Func([IDL.Text], [], []),
-  'updateRoom' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Nat], [], []),
 });
 
 export const idlInitArgs = [];
@@ -65,48 +86,66 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const Booking = IDL.Record({
-    'id' : IDL.Nat,
-    'checkIn' : IDL.Text,
-    'createdAt' : IDL.Int,
-    'guestName' : IDL.Text,
-    'checkOut' : IDL.Text,
-    'phone' : IDL.Text,
-    'roomId' : IDL.Nat,
+  const ShoppingItem = IDL.Record({
+    'productName' : IDL.Text,
+    'currency' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'priceInCents' : IDL.Nat,
+    'productDescription' : IDL.Text,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
-  const Room = IDL.Record({
-    'id' : IDL.Nat,
-    'pricePerNight' : IDL.Nat,
-    'name' : IDL.Text,
-    'description' : IDL.Text,
-    'amenities' : IDL.Vec(IDL.Text),
-    'available' : IDL.Bool,
+  const StripeSessionStatus = IDL.Variant({
+    'completed' : IDL.Record({
+      'userPrincipal' : IDL.Opt(IDL.Text),
+      'response' : IDL.Text,
+    }),
+    'failed' : IDL.Record({ 'error' : IDL.Text }),
+  });
+  const StripeConfiguration = IDL.Record({
+    'allowedCountries' : IDL.Vec(IDL.Text),
+    'secretKey' : IDL.Text,
+  });
+  const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const http_request_result = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
+  const TransformationInput = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : http_request_result,
+  });
+  const TransformationOutput = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
   });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'getBookings' : IDL.Func([], [IDL.Vec(Booking)], ['query']),
+    'createCheckoutSession' : IDL.Func(
+        [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+        [IDL.Text],
+        [],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getContactPhone' : IDL.Func([], [IDL.Text], ['query']),
-    'getRoomById' : IDL.Func([IDL.Nat], [Room], ['query']),
-    'getRooms' : IDL.Func([], [IDL.Vec(Room)], ['query']),
+    'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'submitBooking' : IDL.Func(
-        [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Int],
-        [IDL.Nat],
-        [],
+    'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+    'transform' : IDL.Func(
+        [TransformationInput],
+        [TransformationOutput],
+        ['query'],
       ),
-    'updateContactPhone' : IDL.Func([IDL.Text], [], []),
-    'updateRoom' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Nat], [], []),
   });
 };
 

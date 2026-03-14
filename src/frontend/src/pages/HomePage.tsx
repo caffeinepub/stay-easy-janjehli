@@ -238,20 +238,16 @@ export default function HomePage({
 
       {/* ── Hero ── */}
       <section
-        className="relative bg-primary overflow-hidden"
+        className="relative overflow-hidden"
         aria-label="Hero"
+        style={{
+          backgroundImage: "url('/assets/uploads/IMG_20260315_034739-1.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
       >
-        {/* Dot-pattern overlay */}
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, white 1px, transparent 1px)",
-            backgroundSize: "20px 20px",
-          }}
-        />
-        {/* Radial glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,oklch(0.65_0.18_27/0.4),transparent_60%)]" />
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-black/45" />
 
         <div className="relative px-5 pt-6 pb-0">
           {/* Pill badge */}
