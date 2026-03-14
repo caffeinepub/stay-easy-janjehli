@@ -73,7 +73,20 @@ export interface Booking {
     checkOut: string;
     createdAt: bigint;
 }
+export interface TaxiOption {
+    id: bigint;
+    route: string;
+    price: bigint;
+    description: string;
+}
+export interface MenuItem {
+    id: bigint;
+    name: string;
+    price: bigint;
+    category: string;
+}
 export interface backendInterface {
+    _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     getCallerUserProfile(): Promise<UserProfile | null>;
@@ -87,7 +100,17 @@ export interface backendInterface {
     transform(input: TransformationInput): Promise<TransformationOutput>;
     getRooms(): Promise<Room[]>;
     getRoomById(id: bigint): Promise<Room>;
+    addRoom(name: string, description: string, pricePerNight: bigint, amenities: Array<string>): Promise<bigint>;
     updateRoom(id: bigint, name: string, description: string, price: bigint): Promise<void>;
+    deleteRoom(id: bigint): Promise<void>;
+    getTaxiOptions(): Promise<TaxiOption[]>;
+    addTaxiOption(route: string, price: bigint, description: string): Promise<bigint>;
+    updateTaxiOption(id: bigint, route: string, price: bigint, description: string): Promise<void>;
+    deleteTaxiOption(id: bigint): Promise<void>;
+    getMenuItems(): Promise<MenuItem[]>;
+    addMenuItem(name: string, price: bigint, category: string): Promise<bigint>;
+    updateMenuItem(id: bigint, name: string, price: bigint, category: string): Promise<void>;
+    deleteMenuItem(id: bigint): Promise<void>;
     submitBooking(roomId: bigint, guestName: string, phone: string, checkIn: string, checkOut: string, createdAt: bigint): Promise<bigint>;
     getBookings(): Promise<Booking[]>;
     getContactPhone(): Promise<string>;

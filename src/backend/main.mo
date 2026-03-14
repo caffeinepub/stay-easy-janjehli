@@ -31,6 +31,20 @@ actor {
     createdAt : Int;
   };
 
+  type TaxiOption = {
+    id : Nat;
+    route : Text;
+    price : Nat;
+    description : Text;
+  };
+
+  type MenuItem = {
+    id : Nat;
+    name : Text;
+    price : Nat;
+    category : Text;
+  };
+
   type ContactInfo = {
     phoneNumber : Text;
   };
@@ -39,52 +53,59 @@ actor {
     name : Text;
   };
 
-  let defaultContact : ContactInfo = { phoneNumber = "+919998887777" };
+  let defaultContact : ContactInfo = { phoneNumber = "+91 99999 88888" };
   let accessControlState = AccessControl.initState();
 
   include MixinAuthorization(accessControlState);
 
   var nextRoomId = 4;
   var nextBookingId = 1;
+  var nextTaxiId = 4;
+  var nextMenuId = 6;
   var stripeSecretKey : ?Text = null;
   var stripeAllowedCountries : [Text] = [];
 
   let rooms = Map.empty<Nat, Room>();
   let bookings = Map.empty<Nat, Booking>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let taxiOptions = Map.empty<Nat, TaxiOption>();
+  let menuItems = Map.empty<Nat, MenuItem>();
 
+  // Seed rooms
   let sampleRooms = [
-    {
-      id = 1;
-      name = "Himalayan Retreat";
-      description = "Cozy room with mountain view.";
-      pricePerNight = 800;
-      amenities = ["Free Wi-Fi", "Parking Available", "Mountain View", "Hot Water"];
-      available = true;
-    },
-    {
-      id = 2;
-      name = "Apple Valley Homestay";
-      description = "Spacious homestay in apple orchard.";
-      pricePerNight = 1200;
-      amenities = ["Room Service", "Parking Available", "Mountain View", "Hot Water"];
-      available = true;
-    },
-    {
-      id = 3;
-      name = "Mountain View Cottage";
-      description = "Traditional cottage with stunning views.";
-      pricePerNight = 600;
-      amenities = ["Free Wi-Fi", "Parking Available", "Hot Water"];
-      available = true;
-    },
+    { id = 1; name = "Himalayan Retreat"; description = "Cozy room with mountain view and all basic amenities."; pricePerNight = 800; amenities = ["Free Wi-Fi", "Parking Available", "Mountain View", "Hot Water"]; available = true },
+    { id = 2; name = "Apple Valley Homestay"; description = "Spacious homestay in apple orchard with fresh air."; pricePerNight = 1200; amenities = ["Room Service", "Parking Available", "Mountain View", "Hot Water"]; available = true },
+    { id = 3; name = "Mountain View Cottage"; description = "Traditional cottage with stunning panoramic views."; pricePerNight = 600; amenities = ["Free Wi-Fi", "Parking Available", "Hot Water"]; available = true },
   ];
-
   sampleRooms.forEach(func(room) { rooms.add(room.id, room) });
+
+  // Seed taxi options
+  let sampleTaxi = [
+    { id = 1; route = "Village to Town"; price = 200; description = "Local village to nearest town" },
+    { id = 2; route = "Airport Pickup"; price = 1500; description = "Pick up from nearest airport" },
+    { id = 3; route = "Sightseeing Day Tour"; price = 2000; description = "Full day sightseeing in the area" },
+  ];
+  sampleTaxi.forEach(func(t) { taxiOptions.add(t.id, t) });
+
+  // Seed menu items
+  let sampleMenu = [
+    { id = 1; name = "Dal Rice"; price = 80; category = "Meals" },
+    { id = 2; name = "Paratha"; price = 40; category = "Snacks" },
+    { id = 3; name = "Tea"; price = 20; category = "Drinks" },
+    { id = 4; name = "Maggi"; price = 60; category = "Snacks" },
+    { id = 5; name = "Rajma Chawal"; price = 100; category = "Meals" },
+  ];
+  sampleMenu.forEach(func(m) { menuItems.add(m.id, m) });
 
   var contactInfo : ContactInfo = defaultContact;
 
-  // Transform for HTTP outcalls
+  func requireAdmin(caller : Principal) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+  };
+
+  // HTTP transform for outcalls
   public query func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
     OutCall.transform(input);
   };
@@ -95,9 +116,7 @@ actor {
   };
 
   public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can update Stripe configuration");
-    };
+    requireAdmin(caller);
     stripeSecretKey := ?config.secretKey;
     stripeAllowedCountries := config.allowedCountries;
   };
@@ -119,23 +138,14 @@ actor {
 
   // User Profiles
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
-    };
     userProfiles.get(caller);
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized");
-    };
     userProfiles.get(user);
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
-    };
     userProfiles.add(caller, profile);
   };
 
@@ -151,16 +161,83 @@ actor {
     };
   };
 
+  public shared ({ caller }) func addRoom(name : Text, description : Text, pricePerNight : Nat, amenities : [Text]) : async Nat {
+    requireAdmin(caller);
+    let id = nextRoomId;
+    rooms.add(id, { id; name; description; pricePerNight; amenities; available = true });
+    nextRoomId += 1;
+    id;
+  };
+
   public shared ({ caller }) func updateRoom(id : Nat, name : Text, description : Text, price : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized");
-    };
+    requireAdmin(caller);
     switch (rooms.get(id)) {
       case (null) { Runtime.trap("Room not found") };
       case (?room) {
         rooms.add(id, { id = room.id; name; description; pricePerNight = price; amenities = room.amenities; available = room.available });
       };
     };
+  };
+
+  public shared ({ caller }) func deleteRoom(id : Nat) : async () {
+    requireAdmin(caller);
+    ignore rooms.remove(id);
+  };
+
+  // Taxi
+  public query func getTaxiOptions() : async [TaxiOption] {
+    taxiOptions.values().toArray();
+  };
+
+  public shared ({ caller }) func addTaxiOption(route : Text, price : Nat, description : Text) : async Nat {
+    requireAdmin(caller);
+    let id = nextTaxiId;
+    taxiOptions.add(id, { id; route; price; description });
+    nextTaxiId += 1;
+    id;
+  };
+
+  public shared ({ caller }) func updateTaxiOption(id : Nat, route : Text, price : Nat, description : Text) : async () {
+    requireAdmin(caller);
+    switch (taxiOptions.get(id)) {
+      case (null) { Runtime.trap("Taxi option not found") };
+      case (_) {
+        taxiOptions.add(id, { id; route; price; description });
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteTaxiOption(id : Nat) : async () {
+    requireAdmin(caller);
+    ignore taxiOptions.remove(id);
+  };
+
+  // Restaurant Menu
+  public query func getMenuItems() : async [MenuItem] {
+    menuItems.values().toArray();
+  };
+
+  public shared ({ caller }) func addMenuItem(name : Text, price : Nat, category : Text) : async Nat {
+    requireAdmin(caller);
+    let id = nextMenuId;
+    menuItems.add(id, { id; name; price; category });
+    nextMenuId += 1;
+    id;
+  };
+
+  public shared ({ caller }) func updateMenuItem(id : Nat, name : Text, price : Nat, category : Text) : async () {
+    requireAdmin(caller);
+    switch (menuItems.get(id)) {
+      case (null) { Runtime.trap("Menu item not found") };
+      case (_) {
+        menuItems.add(id, { id; name; price; category });
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteMenuItem(id : Nat) : async () {
+    requireAdmin(caller);
+    ignore menuItems.remove(id);
   };
 
   // Bookings
@@ -178,9 +255,7 @@ actor {
   };
 
   public query ({ caller }) func getBookings() : async [Booking] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized");
-    };
+    requireAdmin(caller);
     bookings.values().toArray();
   };
 
@@ -190,9 +265,7 @@ actor {
   };
 
   public shared ({ caller }) func updateContactPhone(phoneNumber : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized");
-    };
+    requireAdmin(caller);
     contactInfo := { contactInfo with phoneNumber };
   };
 };

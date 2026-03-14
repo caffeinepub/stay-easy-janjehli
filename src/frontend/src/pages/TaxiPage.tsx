@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Car, MapPin, Phone } from "lucide-react";
 import AppHeader from "../components/AppHeader";
-import { useGetContactPhone } from "../hooks/useQueries";
+import { useGetContactPhone, useGetTaxiOptions } from "../hooks/useQueries";
 
 const vehicles = [
   {
@@ -25,41 +25,9 @@ const vehicles = [
   },
 ];
 
-const routes = [
-  {
-    destination: "Shimla",
-    distance: "~110 km",
-    time: "3-4 hrs",
-    price: "2,500 - 4,500",
-  },
-  {
-    destination: "Mandi City",
-    distance: "~25 km",
-    time: "45 min",
-    price: "600 - 1,000",
-  },
-  {
-    destination: "Kullu / Manali",
-    distance: "~130 km",
-    time: "4-5 hrs",
-    price: "3,000 - 5,500",
-  },
-  {
-    destination: "Chandigarh Airport",
-    distance: "~220 km",
-    time: "5-6 hrs",
-    price: "5,000 - 8,000",
-  },
-  {
-    destination: "Dharamsala",
-    distance: "~150 km",
-    time: "4-5 hrs",
-    price: "3,500 - 6,000",
-  },
-];
-
 export default function TaxiPage() {
-  const { data: phone, isLoading } = useGetContactPhone();
+  const { data: phone, isLoading: phoneLoading } = useGetContactPhone();
+  const { data: taxiOptions, isLoading: routesLoading } = useGetTaxiOptions();
   const displayPhone = phone ?? "+91 98765 43210";
 
   return (
@@ -111,31 +79,50 @@ export default function TaxiPage() {
         <section>
           <h3 className="text-foreground font-bold text-base mb-3 flex items-center gap-2">
             <MapPin size={18} className="text-primary" />
-            Popular Routes
+            Available Routes
           </h3>
-          <div className="bg-card rounded-xl border border-border overflow-hidden shadow-card divide-y divide-border">
-            {routes.map((r, i) => (
-              <div
-                key={r.destination}
-                data-ocid={`taxi.route.item.${i + 1}`}
-                className="p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-foreground font-bold text-sm">
-                      {r.destination}
-                    </p>
-                    <p className="text-muted-foreground text-xs mt-0.5">
-                      {r.distance} - {r.time}
-                    </p>
+          {routesLoading ? (
+            <div data-ocid="taxi.routes.loading_state" className="space-y-2">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
+          ) : taxiOptions && taxiOptions.length > 0 ? (
+            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-card divide-y divide-border">
+              {taxiOptions.map((route, i) => (
+                <div
+                  key={route.id.toString()}
+                  data-ocid={`taxi.route.item.${i + 1}`}
+                  className="p-4"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-foreground font-bold text-sm">
+                        {route.route}
+                      </p>
+                      {route.description && (
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                          {route.description}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-primary font-bold text-sm whitespace-nowrap">
+                      ₹{route.price.toString()}
+                    </span>
                   </div>
-                  <span className="text-primary font-bold text-sm whitespace-nowrap">
-                    Rs. {r.price}
-                  </span>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              data-ocid="taxi.routes.empty_state"
+              className="bg-card rounded-xl border border-border p-6 text-center"
+            >
+              <p className="text-muted-foreground text-sm">
+                No routes available. Contact us for custom pricing.
+              </p>
+            </div>
+          )}
           <p className="text-muted-foreground text-xs mt-2 px-1">
             * Prices vary by vehicle type. Call for exact quote.
           </p>
@@ -143,7 +130,7 @@ export default function TaxiPage() {
 
         <a
           data-ocid="taxi.call.button"
-          href={isLoading ? undefined : `tel:${displayPhone}`}
+          href={phoneLoading ? undefined : `tel:${displayPhone}`}
           className="flex items-center gap-4 bg-primary rounded-2xl p-4 shadow-elevated"
         >
           <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center">
@@ -153,7 +140,7 @@ export default function TaxiPage() {
             <p className="text-primary-foreground/70 text-xs font-medium">
               Call to Book a Taxi
             </p>
-            {isLoading ? (
+            {phoneLoading ? (
               <Skeleton className="h-6 w-40 mt-1 bg-white/30" />
             ) : (
               <p className="text-primary-foreground font-bold text-lg">

@@ -1,49 +1,39 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Phone, Utensils } from "lucide-react";
+import { Phone, Utensils } from "lucide-react";
+import type { MenuItem } from "../backend.d";
 import AppHeader from "../components/AppHeader";
-import { useGetContactPhone } from "../hooks/useQueries";
+import { useGetContactPhone, useGetMenuItems } from "../hooks/useQueries";
 
-const menu = [
-  {
-    category: "Breakfast",
-    emoji: "🌅",
-    time: "7:00 AM - 10:30 AM",
-    items: [
-      { name: "Parantha with Curd & Pickle", price: "Rs. 80" },
-      { name: "Poori Sabzi", price: "Rs. 70" },
-      { name: "Omelette Bread", price: "Rs. 60" },
-      { name: "Masala Chai", price: "Rs. 20" },
-    ],
-  },
-  {
-    category: "Lunch & Dinner",
-    emoji: "🍛",
-    time: "12:00 PM - 3:00 PM & 7:00 PM - 10:00 PM",
-    items: [
-      { name: "Dal Fry + Rice + Roti", price: "Rs. 150" },
-      { name: "Rajma Chawal", price: "Rs. 140" },
-      { name: "Veg Thali (Full)", price: "Rs. 200" },
-      { name: "Chicken Curry + Rice", price: "Rs. 250" },
-      { name: "Paneer Butter Masala", price: "Rs. 220" },
-    ],
-  },
-  {
-    category: "Snacks & Beverages",
-    emoji: "☕",
-    time: "Anytime",
-    items: [
-      { name: "Maggi Noodles", price: "Rs. 60" },
-      { name: "Bread Pakora", price: "Rs. 50" },
-      { name: "Samosa (2 pcs)", price: "Rs. 30" },
-      { name: "Cold Drink / Juice", price: "Rs. 40" },
-      { name: "Lassi", price: "Rs. 50" },
-    ],
-  },
-];
+const CATEGORY_CONFIG: Record<string, { emoji: string; label: string }> = {
+  Meals: { emoji: "🍛", label: "Meals" },
+  Snacks: { emoji: "🍿", label: "Snacks" },
+  Drinks: { emoji: "☕", label: "Drinks" },
+};
+
+const CATEGORY_ORDER = ["Meals", "Snacks", "Drinks"];
 
 export default function RestaurantPage() {
-  const { data: phone, isLoading } = useGetContactPhone();
+  const { data: phone, isLoading: phoneLoading } = useGetContactPhone();
+  const { data: menuItems, isLoading: menuLoading } = useGetMenuItems();
   const displayPhone = phone ?? "+91 98765 43210";
+
+  // Group items by category
+  const grouped: Record<string, MenuItem[]> = {};
+  if (menuItems) {
+    for (const item of menuItems) {
+      const cat = item.category || "Other";
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(item);
+    }
+  }
+
+  const categories = CATEGORY_ORDER.filter(
+    (c) => grouped[c] && grouped[c].length > 0,
+  );
+  // Add any categories not in the predefined order
+  for (const cat of Object.keys(grouped)) {
+    if (!categories.includes(cat)) categories.push(cat);
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -59,47 +49,60 @@ export default function RestaurantPage() {
               Stay Easy Restaurant
             </h2>
             <p className="text-primary-foreground/70 text-sm mt-0.5">
-              Home-style Himachali & North Indian food
+              Home-style Himachali &amp; North Indian food
             </p>
           </div>
         </div>
 
-        {menu.map((section, si) => (
-          <section
-            key={section.category}
-            data-ocid={`restaurant.menu.panel.${si + 1}`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-foreground font-bold text-base">
-                {section.emoji} {section.category}
-              </h3>
-              <span className="flex items-center gap-1 text-muted-foreground text-xs">
-                <Clock size={12} />
-                {section.time}
-              </span>
-            </div>
-            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-card divide-y divide-border">
-              {section.items.map((item, ii) => (
-                <div
-                  key={item.name}
-                  data-ocid={`restaurant.menu.item.${si * 10 + ii + 1}`}
-                  className="flex items-center justify-between px-4 py-3"
-                >
-                  <p className="text-foreground text-sm font-medium">
-                    {item.name}
-                  </p>
-                  <span className="text-primary font-bold text-sm">
-                    {item.price}
-                  </span>
+        {menuLoading ? (
+          <div data-ocid="restaurant.menu.loading_state" className="space-y-4">
+            <Skeleton className="h-8 w-40 rounded-lg" />
+            <Skeleton className="h-40 w-full rounded-xl" />
+            <Skeleton className="h-8 w-40 rounded-lg" />
+            <Skeleton className="h-32 w-full rounded-xl" />
+          </div>
+        ) : categories.length > 0 ? (
+          categories.map((cat, si) => {
+            const config = CATEGORY_CONFIG[cat] ?? { emoji: "🍽️", label: cat };
+            const items = grouped[cat];
+            return (
+              <section key={cat} data-ocid={`restaurant.menu.panel.${si + 1}`}>
+                <h3 className="text-foreground font-bold text-base mb-3">
+                  {config.emoji} {config.label}
+                </h3>
+                <div className="bg-card rounded-xl border border-border overflow-hidden shadow-card divide-y divide-border">
+                  {items.map((item, ii) => (
+                    <div
+                      key={item.id.toString()}
+                      data-ocid={`restaurant.menu.item.${si * 20 + ii + 1}`}
+                      className="flex items-center justify-between px-4 py-3"
+                    >
+                      <p className="text-foreground text-sm font-medium">
+                        {item.name}
+                      </p>
+                      <span className="text-primary font-bold text-sm whitespace-nowrap">
+                        ₹{item.price.toString()}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-        ))}
+              </section>
+            );
+          })
+        ) : (
+          <div
+            data-ocid="restaurant.menu.empty_state"
+            className="bg-card rounded-xl border border-border p-8 text-center"
+          >
+            <p className="text-muted-foreground text-sm">
+              Menu coming soon. Call us to know today's specials!
+            </p>
+          </div>
+        )}
 
         <a
           data-ocid="restaurant.call.button"
-          href={isLoading ? undefined : `tel:${displayPhone}`}
+          href={phoneLoading ? undefined : `tel:${displayPhone}`}
           className="flex items-center gap-4 bg-primary rounded-2xl p-4 shadow-elevated"
         >
           <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center">
@@ -109,7 +112,7 @@ export default function RestaurantPage() {
             <p className="text-primary-foreground/70 text-xs font-medium">
               Call to Order Food
             </p>
-            {isLoading ? (
+            {phoneLoading ? (
               <Skeleton className="h-6 w-40 mt-1 bg-white/30" />
             ) : (
               <p className="text-primary-foreground font-bold text-lg">
