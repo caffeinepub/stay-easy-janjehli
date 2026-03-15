@@ -21,6 +21,7 @@ import {
   Car,
   CheckCircle2,
   CreditCard,
+  ImagePlus,
   Loader2,
   LogIn,
   Phone,
@@ -54,6 +55,7 @@ import {
   useUpdateRoom,
   useUpdateTaxiOption,
 } from "../hooks/useQueries";
+import { useUploadFile } from "../hooks/useUploadFile";
 
 // ── Room Management ──────────────────────────────────────────────────────────
 
@@ -61,8 +63,25 @@ function RoomCard({ room, index }: { room: Room; index: number }) {
   const [name, setName] = useState(room.name);
   const [description, setDescription] = useState(room.description);
   const [price, setPrice] = useState(room.pricePerNight.toString());
+  const [photoUrl, setPhotoUrl] = useState<string | null>(
+    room.photoUrl ?? null,
+  );
+  const { uploadFile, uploadProgress, setUploadProgress } = useUploadFile();
   const updateRoom = useUpdateRoom();
   const deleteRoom = useDeleteRoom();
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadFile(file);
+      setPhotoUrl(url);
+      toast.success("Photo uploaded!");
+    } catch {
+      setUploadProgress(null);
+      toast.error("Photo upload failed");
+    }
+  };
 
   const handleSave = async () => {
     const p = Number.parseInt(price, 10);
@@ -76,6 +95,7 @@ function RoomCard({ room, index }: { room: Room; index: number }) {
         name: name.trim(),
         description: description.trim(),
         price: BigInt(p),
+        photoUrl,
       });
       toast.success("Room updated!");
     } catch {
@@ -151,6 +171,44 @@ function RoomCard({ room, index }: { room: Room; index: number }) {
           />
         </div>
       </div>
+      <div>
+        <Label className="text-xs text-muted-foreground">Room Photo</Label>
+        <label className="mt-1 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-primary/30 rounded-lg p-3 cursor-pointer hover:border-primary/60 transition-colors">
+          <input
+            data-ocid={`admin.room.upload_button.${index}`}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoUpload}
+          />
+          {uploadProgress !== null ? (
+            <div className="w-full">
+              <div className="text-xs text-center text-muted-foreground mb-1">
+                Uploading {uploadProgress}%
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          ) : photoUrl ? (
+            <img
+              src={photoUrl}
+              alt="Room"
+              className="max-h-24 w-full object-cover rounded-lg"
+            />
+          ) : (
+            <>
+              <ImagePlus className="h-5 w-5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                Upload Photo
+              </span>
+            </>
+          )}
+        </label>
+      </div>
       <Button
         data-ocid={`admin.room.save_button.${index}`}
         onClick={handleSave}
@@ -175,7 +233,22 @@ function AddRoomForm() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [amenities, setAmenities] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const { uploadFile, uploadProgress, setUploadProgress } = useUploadFile();
   const addRoom = useAddRoom();
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadFile(file);
+      setPhotoUrl(url);
+      toast.success("Photo uploaded!");
+    } catch {
+      setUploadProgress(null);
+      toast.error("Photo upload failed");
+    }
+  };
 
   const handleAdd = async () => {
     const p = Number.parseInt(price, 10);
@@ -192,11 +265,13 @@ function AddRoomForm() {
           .split(",")
           .map((a) => a.trim())
           .filter(Boolean),
+        photoUrl,
       });
       setName("");
       setDescription("");
       setPrice("");
       setAmenities("");
+      setPhotoUrl(null);
       toast.success("Room added!");
     } catch {
       toast.error("Failed to add room");
@@ -256,6 +331,44 @@ function AddRoomForm() {
             placeholder="WiFi, AC, TV, Geyser"
             className="h-9 text-sm mt-1"
           />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">Room Photo</Label>
+          <label className="mt-1 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-primary/30 rounded-lg p-3 cursor-pointer hover:border-primary/60 transition-colors">
+            <input
+              data-ocid="admin.room.add.upload_button"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoUpload}
+            />
+            {uploadProgress !== null ? (
+              <div className="w-full">
+                <div className="text-xs text-center text-muted-foreground mb-1">
+                  Uploading {uploadProgress}%
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : photoUrl ? (
+              <img
+                src={photoUrl}
+                alt="Room"
+                className="max-h-24 w-full object-cover rounded-lg"
+              />
+            ) : (
+              <>
+                <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  Upload Photo
+                </span>
+              </>
+            )}
+          </label>
         </div>
       </div>
       <Button

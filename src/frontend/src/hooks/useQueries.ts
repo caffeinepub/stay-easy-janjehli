@@ -48,6 +48,7 @@ export function useAddRoom() {
       description: string;
       pricePerNight: bigint;
       amenities: string[];
+      photoUrl: string | null;
     }) => {
       if (!actor) throw new Error("Not connected");
       return typed(actor).addRoom(
@@ -55,6 +56,7 @@ export function useAddRoom() {
         params.description,
         params.pricePerNight,
         params.amenities,
+        params.photoUrl,
       );
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rooms"] }),
@@ -70,6 +72,7 @@ export function useUpdateRoom() {
       name: string;
       description: string;
       price: bigint;
+      photoUrl: string | null;
     }) => {
       if (!actor) throw new Error("Not connected");
       return typed(actor).updateRoom(
@@ -77,6 +80,7 @@ export function useUpdateRoom() {
         params.name,
         params.description,
         params.price,
+        params.photoUrl,
       );
     },
     onSuccess: () => {

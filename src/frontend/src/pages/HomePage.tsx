@@ -41,6 +41,7 @@ const SAMPLE_ROOMS: Room[] = [
     pricePerNight: BigInt(800),
     amenities: ["Wi-Fi", "Mountain View", "TV", "Tea/Coffee"],
     available: true,
+    photoUrl: null,
   },
   {
     id: BigInt(2),
@@ -50,6 +51,7 @@ const SAMPLE_ROOMS: Room[] = [
     pricePerNight: BigInt(1200),
     amenities: ["Wi-Fi", "Mountain View", "AC", "TV", "Parking"],
     available: true,
+    photoUrl: null,
   },
   {
     id: BigInt(3),
@@ -58,6 +60,7 @@ const SAMPLE_ROOMS: Room[] = [
     pricePerNight: BigInt(500),
     amenities: ["Wi-Fi", "TV"],
     available: true,
+    photoUrl: null,
   },
 ];
 
@@ -146,13 +149,25 @@ function RoomCard({
       transition={{ duration: 0.4, delay: (index - 1) * 0.1 }}
       className="bg-card rounded-2xl shadow-elevated overflow-hidden border border-border/50"
     >
-      {/* Gradient banner */}
+      {/* Banner - photo or gradient */}
       <div
-        className={`relative h-28 bg-gradient-to-br ${gradient} overflow-hidden`}
+        className={`relative h-28 overflow-hidden ${room.photoUrl ? "" : `bg-gradient-to-br ${gradient}`}`}
       >
+        {room.photoUrl && (
+          <img
+            src={room.photoUrl}
+            alt={room.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        {room.photoUrl && <div className="absolute inset-0 bg-black/30" />}
         {/* Decorative circles */}
-        <div className="absolute -top-4 -right-4 w-28 h-28 rounded-full bg-white/5" />
-        <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-white/5" />
+        {!room.photoUrl && (
+          <div className="absolute -top-4 -right-4 w-28 h-28 rounded-full bg-white/5" />
+        )}
+        {!room.photoUrl && (
+          <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-white/5" />
+        )}
         <div className="absolute top-2 right-3 flex gap-0.5">
           {stars >= 1 && (
             <Star key="s1" size={10} className="text-accent fill-accent" />

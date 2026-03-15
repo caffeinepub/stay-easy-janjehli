@@ -12,6 +12,17 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
 actor {
+  // Internal storage type (stable-compatible with previous version)
+  type RoomData = {
+    id : Nat;
+    name : Text;
+    description : Text;
+    pricePerNight : Nat;
+    amenities : [Text];
+    available : Bool;
+  };
+
+  // Public return type (includes photoUrl)
   type Room = {
     id : Nat;
     name : Text;
@@ -19,6 +30,7 @@ actor {
     pricePerNight : Nat;
     amenities : [Text];
     available : Bool;
+    photoUrl : ?Text;
   };
 
   type Booking = {
@@ -65,7 +77,10 @@ actor {
   var stripeSecretKey : ?Text = null;
   var stripeAllowedCountries : [Text] = [];
 
-  let rooms = Map.empty<Nat, Room>();
+  // rooms stores RoomData (no photoUrl) -- stable compatible with previous version
+  let rooms = Map.empty<Nat, RoomData>();
+  // separate map for photo URLs -- new, no migration needed
+  let roomPhotos = Map.empty<Nat, Text>();
   let bookings = Map.empty<Nat, Booking>();
   let userProfiles = Map.empty<Principal, UserProfile>();
   let taxiOptions = Map.empty<Nat, TaxiOption>();
@@ -102,6 +117,18 @@ actor {
   func requireAdmin(caller : Principal) {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Admin access required");
+    };
+  };
+
+  func roomDataToRoom(data : RoomData) : Room {
+    {
+      id = data.id;
+      name = data.name;
+      description = data.description;
+      pricePerNight = data.pricePerNight;
+      amenities = data.amenities;
+      available = data.available;
+      photoUrl = roomPhotos.get(data.id);
     };
   };
 
@@ -151,30 +178,38 @@ actor {
 
   // Rooms
   public query func getRooms() : async [Room] {
-    rooms.values().toArray();
+    rooms.values().toArray().map(roomDataToRoom);
   };
 
   public query func getRoomById(id : Nat) : async Room {
     switch (rooms.get(id)) {
       case (null) { Runtime.trap("Room not found") };
-      case (?room) { room };
+      case (?data) { roomDataToRoom(data) };
     };
   };
 
-  public shared ({ caller }) func addRoom(name : Text, description : Text, pricePerNight : Nat, amenities : [Text]) : async Nat {
+  public shared ({ caller }) func addRoom(name : Text, description : Text, pricePerNight : Nat, amenities : [Text], photoUrl : ?Text) : async Nat {
     requireAdmin(caller);
     let id = nextRoomId;
     rooms.add(id, { id; name; description; pricePerNight; amenities; available = true });
+    switch (photoUrl) {
+      case (?url) { roomPhotos.add(id, url) };
+      case (null) {};
+    };
     nextRoomId += 1;
     id;
   };
 
-  public shared ({ caller }) func updateRoom(id : Nat, name : Text, description : Text, price : Nat) : async () {
+  public shared ({ caller }) func updateRoom(id : Nat, name : Text, description : Text, price : Nat, photoUrl : ?Text) : async () {
     requireAdmin(caller);
     switch (rooms.get(id)) {
       case (null) { Runtime.trap("Room not found") };
       case (?room) {
         rooms.add(id, { id = room.id; name; description; pricePerNight = price; amenities = room.amenities; available = room.available });
+        switch (photoUrl) {
+          case (?url) { roomPhotos.add(id, url) };
+          case (null) {};
+        };
       };
     };
   };
@@ -182,6 +217,7 @@ actor {
   public shared ({ caller }) func deleteRoom(id : Nat) : async () {
     requireAdmin(caller);
     ignore rooms.remove(id);
+    ignore roomPhotos.remove(id);
   };
 
   // Taxi

@@ -47,6 +47,7 @@ const SAMPLE_ROOMS: Record<string, Room> = {
     pricePerNight: BigInt(800),
     amenities: ["Wi-Fi", "Mountain View", "TV", "Tea/Coffee"],
     available: true,
+    photoUrl: null,
   },
   "2": {
     id: BigInt(2),
@@ -56,6 +57,7 @@ const SAMPLE_ROOMS: Record<string, Room> = {
     pricePerNight: BigInt(1200),
     amenities: ["Wi-Fi", "Mountain View", "AC", "TV", "Parking"],
     available: true,
+    photoUrl: null,
   },
   "3": {
     id: BigInt(3),
@@ -65,6 +67,7 @@ const SAMPLE_ROOMS: Record<string, Room> = {
     pricePerNight: BigInt(500),
     amenities: ["Wi-Fi", "TV"],
     available: true,
+    photoUrl: null,
   },
 };
 
@@ -371,32 +374,41 @@ export default function RoomDetailPage({
         ) : room ? (
           <>
             {/* Room name + price */}
-            <div className="bg-card rounded-xl shadow-card p-4 border border-border">
-              <h2 className="text-foreground font-bold text-xl font-display mb-2">
-                {room.name}
-              </h2>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary rounded-xl px-4 py-2 flex items-baseline gap-1">
-                  <span className="text-primary-foreground font-bold text-2xl">
-                    ₹{room.pricePerNight.toString()}
-                  </span>
-                  <span className="text-primary-foreground/80 text-sm">
-                    / Night
-                  </span>
+            <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
+              {room.photoUrl && (
+                <img
+                  src={room.photoUrl}
+                  alt={room.name}
+                  className="w-full max-h-48 object-cover rounded-t-xl"
+                />
+              )}
+              <div className="p-4">
+                <h2 className="text-foreground font-bold text-xl font-display mb-2">
+                  {room.name}
+                </h2>
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary rounded-xl px-4 py-2 flex items-baseline gap-1">
+                    <span className="text-primary-foreground font-bold text-2xl">
+                      ₹{room.pricePerNight.toString()}
+                    </span>
+                    <span className="text-primary-foreground/80 text-sm">
+                      / Night
+                    </span>
+                  </div>
+                  {room.available ? (
+                    <span className="text-green-600 text-sm font-semibold flex items-center gap-1">
+                      <CheckCircle size={14} /> Available
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">
+                      Not Available
+                    </span>
+                  )}
                 </div>
-                {room.available ? (
-                  <span className="text-green-600 text-sm font-semibold flex items-center gap-1">
-                    <CheckCircle size={14} /> Available
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground text-sm">
-                    Not Available
-                  </span>
-                )}
+                <p className="text-muted-foreground text-sm mt-3 leading-relaxed">
+                  {room.description}
+                </p>
               </div>
-              <p className="text-muted-foreground text-sm mt-3 leading-relaxed">
-                {room.description}
-              </p>
             </div>
 
             {/* Amenities */}

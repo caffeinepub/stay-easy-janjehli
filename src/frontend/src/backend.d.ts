@@ -63,6 +63,7 @@ export interface Room {
     pricePerNight: bigint;
     amenities: Array<string>;
     available: boolean;
+    photoUrl: string | null;
 }
 export interface Booking {
     id: bigint;
@@ -100,8 +101,8 @@ export interface backendInterface {
     transform(input: TransformationInput): Promise<TransformationOutput>;
     getRooms(): Promise<Room[]>;
     getRoomById(id: bigint): Promise<Room>;
-    addRoom(name: string, description: string, pricePerNight: bigint, amenities: Array<string>): Promise<bigint>;
-    updateRoom(id: bigint, name: string, description: string, price: bigint): Promise<void>;
+    addRoom(name: string, description: string, pricePerNight: bigint, amenities: Array<string>, photoUrl: string | null): Promise<bigint>;
+    updateRoom(id: bigint, name: string, description: string, price: bigint, photoUrl: string | null): Promise<void>;
     deleteRoom(id: bigint): Promise<void>;
     getTaxiOptions(): Promise<TaxiOption[]>;
     addTaxiOption(route: string, price: bigint, description: string): Promise<bigint>;
