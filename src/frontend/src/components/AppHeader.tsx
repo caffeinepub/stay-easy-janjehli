@@ -13,7 +13,7 @@ export default function AppHeader({ subtitle, onAdminClick }: AppHeaderProps) {
 
       <div className="relative px-4 py-3 flex items-center gap-3">
         <img
-          src="/assets/generated/stay-easy-logo-premium-transparent.dim_600x200.png"
+          src="/assets/uploads/IMG_20260315_031009-1.jpg"
           alt="Stay Easy Logo"
           className="h-16 w-auto max-w-[220px] object-contain drop-shadow-md"
         />

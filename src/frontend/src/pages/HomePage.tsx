@@ -252,15 +252,15 @@ export default function HomePage({
       <AppHeader onAdminClick={onAdminClick} />
 
       {/* ── Hero ── */}
-      <section
-        className="relative overflow-hidden"
-        aria-label="Hero"
-        style={{
-          backgroundImage: "url('/assets/uploads/IMG_20260315_034739-1.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
+      <section className="relative overflow-hidden" aria-label="Hero">
+        {/* Valley background photo */}
+        <img
+          src="/assets/uploads/IMG_20260315_034739-1.jpg"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          aria-hidden="true"
+        />
+
         {/* Dark overlay for text readability */}
         <div className="absolute inset-0 bg-black/45" />
 
